@@ -1,0 +1,6 @@
+docker-workflow:1.29
+kubernetes:3909.v1f2c4e0a_07cc
+pipeline-aws:596.v8c35c64d_0db_7
+sonar:2.15
+git:5.2.0
+blueocean:1.27.9

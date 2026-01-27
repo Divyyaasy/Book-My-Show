@@ -1,0 +1,79 @@
+pipeline {
+    agent any
+    tools {
+        jdk 'jdk17'
+        nodejs 'node18'
+    }
+    environment {
+        DOCKER_REGISTRY = 'your-docker-registry'
+        K8S_NAMESPACE = 'bookmyshow-prod'
+        APP_NAME = 'bookmyshow-app'
+    }
+    stages {
+        stage('Clean Workspace') {
+            steps {
+                cleanWs()
+            }
+        }
+        stage('Checkout Code') {
+            steps {
+                git branch: 'main', 
+                url: 'https://github.com/staragile2016/Book-My-Show.git'
+            }
+        }
+        stage('Build Application') {
+            steps {
+                sh '''
+                cd bookmyshow-app
+                npm install
+                npm run build
+                '''
+            }
+        }
+        stage('Build Docker Image') {
+            steps {
+                sh 'docker build -t ${APP_NAME}:${BUILD_NUMBER} .'
+                sh 'docker tag ${APP_NAME}:${BUILD_NUMBER} ${APP_NAME}:latest'
+            }
+        }
+        stage('Push to Registry') {
+            steps {
+                script {
+                    // For AWS ECR or Docker Hub
+                    sh '''
+                    docker login -u ${DOCKER_USER} -p ${DOCKER_PASS}
+                    docker push ${APP_NAME}:${BUILD_NUMBER}
+                    docker push ${APP_NAME}:latest
+                    '''
+                }
+            }
+        }
+        stage('Deploy to Kubernetes') {
+            steps {
+                sh '''
+                kubectl apply -f k8s/deployment.yaml
+                kubectl apply -f k8s/service.yaml
+                kubectl apply -f k8s/ingress.yaml
+                kubectl rollout status deployment/bookmyshow-app
+                '''
+            }
+        }
+        stage('Test Deployment') {
+            steps {
+                sh '''
+                kubectl get pods
+                kubectl get services
+                # Add actual API test here
+                '''
+            }
+        }
+    }
+    post {
+        success {
+            echo 'Pipeline completed successfully!'
+        }
+        failure {
+            echo 'Pipeline failed!'
+        }
+    }
+}

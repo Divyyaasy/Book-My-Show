@@ -1,0 +1,13 @@
+#!/bin/bash
+echo "🔧 Jenkins Tools Configuration Steps:"
+echo ""
+echo "AFTER Jenkins restarts:"
+echo "1. Go to: Manage Jenkins → Tools"
+echo "2. Add JDK 17:"
+echo "   - Name: jdk17"
+echo "   - JAVA_HOME: /usr/lib/jvm/java-17-openjdk-amd64"
+echo "3. Add Node.js:"
+echo "   - Name: node18"
+echo "   - Check: 'Install automatically'"
+echo "   - Version: 18.x"
+echo "4. Save"
