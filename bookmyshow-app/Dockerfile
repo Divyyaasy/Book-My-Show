@@ -1,64 +1,20 @@
-# Stage 1: Build React app
-FROM node:18 AS build
+# Single stage Dockerfile
+FROM node:18-alpine
+
 WORKDIR /app
 
-# Copy package files and install dependencies
+# Copy backend files
 COPY package*.json ./
-RUN npm install
+COPY server.js ./
 
-# Copy all source files
-COPY . .
+# Install backend dependencies
+RUN npm install --only=production
 
-# Fix Node 18 OpenSSL issue
-ENV NODE_OPTIONS=--openssl-legacy-provider
+# Copy React build
+COPY bookmyshow-app/build ./bookmyshow-app/build
 
-# Build the React app
-RUN npm run build
+# Expose port
+EXPOSE 3000
 
-# Stage 2: Serve with Nginx
-FROM nginx:alpine
-COPY --from=build /app/build /usr/share/nginx/html
-
-# Expose port 80
-EXPOSE 80
-CMD ["nginx", "-g", "daemon off;"]
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+# Start the application
+CMD ["node", "server.js"]

@@ -1,0 +1,12 @@
+{
+  "name": "bookmyshow-backend",
+  "version": "1.0.0",
+  "description": "BookMyShow Backend Server",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.22.1"
+  }
+}
