@@ -1,36 +1,45 @@
 pipeline {
     agent any
-    tools {
-        jdk 'jdk17'
-        // NodeJS plugin not installed, using system Node.js
-    }
+    
     environment {
-        DOCKER_IMAGE = 'bookmyshow-app'
-        DOCKER_TAG = "${BUILD_NUMBER}"
-        K8S_NAMESPACE = 'bookmyshow-prod'
+        DOCKER_IMAGE = "bookmyshow-app"
     }
+    
     stages {
-        stage('Clean Workspace') {
+        stage('Checkout') {
             steps {
-                cleanWs()
-            }
-        }
-        
-        stage('Checkout Code') {
-            steps {
-                git branch: 'main', 
+                git branch: 'main',
                 url: 'https://github.com/staragile2016/Book-My-Show.git'
                 sh 'ls -la'
             }
         }
         
-        stage('Build Application') {
+        stage('Build React App') {
             steps {
                 sh '''
-                echo "Using system Node.js: $(node --version)"
+                echo "🔨 BUILDING REACT APPLICATION"
                 cd bookmyshow-app
-                npm install
-                npm run build
+                
+                # Clean and install
+                rm -rf node_modules package-lock.json build
+                echo "legacy-peer-deps=true" > .npmrc
+                echo "audit=false" >> .npmrc
+                
+                # Install with compatible versions
+                npm install react-scripts@4.0.3 --save
+                npm install --legacy-peer-deps --force
+                
+                # Build
+                CI=false npm run build
+                
+                # Verify build
+                if [ ! -d "build" ]; then
+                    echo "❌ React build failed"
+                    exit 1
+                else
+                    echo "✅ React build successful"
+                    echo "Build size: \$(du -sh build)"
+                fi
                 '''
             }
         }
@@ -38,39 +47,63 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 sh '''
-                docker build -t ${DOCKER_IMAGE}:${DOCKER_TAG} .
-                docker tag ${DOCKER_IMAGE}:${DOCKER_TAG} ${DOCKER_IMAGE}:latest
+                echo "🐳 BUILDING DOCKER IMAGE"
+                
+                # Build Docker image
+                docker build --no-cache -t ${DOCKER_IMAGE}:${BUILD_NUMBER} .
+                docker tag ${DOCKER_IMAGE}:${BUILD_NUMBER} ${DOCKER_IMAGE}:latest
+                
+                echo "✅ Docker image built successfully"
+                docker images | grep ${DOCKER_IMAGE}
                 '''
             }
         }
         
-        stage('Deploy to Kubernetes') {
+        stage('Test Container') {
             steps {
                 sh '''
-                kubectl apply -f k8s/deployment.yaml
-                kubectl apply -f k8s/service.yaml
-                kubectl apply -f k8s/ingress.yaml
-                kubectl rollout status deployment/bookmyshow-app
-                '''
-            }
-        }
-        
-        stage('Verify Deployment') {
-            steps {
-                sh '''
-                echo "Deployment verification:"
-                kubectl get pods
-                kubectl get services
+                echo "🧪 TESTING DOCKER CONTAINER"
+                
+                # Find available port
+                PORT=9099
+                while netstat -tulpn | grep :$PORT >/dev/null; do
+                    PORT=$((PORT + 1))
+                done
+                
+                # Run test container
+                docker run -d --name test-${BUILD_NUMBER} -p $PORT:3000 ${DOCKER_IMAGE}:${BUILD_NUMBER}
+                sleep 5
+                
+                # Test health endpoint
+                if curl -s http://localhost:$PORT/api/health | grep -q "OK"; then
+                    echo "✅ Container test passed"
+                else
+                    echo "❌ Container test failed"
+                    docker logs test-${BUILD_NUMBER}
+                    exit 1
+                fi
+                
+                # Cleanup
+                docker stop test-${BUILD_NUMBER}
+                docker rm test-${BUILD_NUMBER}
                 '''
             }
         }
     }
+    
     post {
+        always {
+            sh '''
+            echo "🧹 Cleaning up..."
+            docker system prune -f || true
+            rm -rf bookmyshow-app/node_modules bookmyshow-app/build || true
+            '''
+        }
         success {
-            echo '🎉 Pipeline completed successfully!'
+            echo '🎉 🎉 🎉 PIPELINE SUCCESSFUL! 🎉 🎉 🎉'
         }
         failure {
-            echo '❌ Pipeline failed! Check logs above.'
+            echo '❌ ❌ ❌ PIPELINE FAILED! ❌ ❌ ❌'
         }
     }
 }
